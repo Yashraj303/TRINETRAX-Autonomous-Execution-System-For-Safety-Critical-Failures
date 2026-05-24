@@ -1,0 +1,220 @@
+#include <WiFi.h>
+
+// =========================
+// WIFI CONFIG
+// =========================
+const char* ssid = "Yashraj";
+const char* password = "30032006";
+
+WiFiServer server(80);
+
+// =========================
+// PIN CONFIG
+// =========================
+#define BUZZER 23
+#define BUTTON 18
+
+#define LED_GREEN 25
+#define LED_BLUE 26
+#define LED_ORANGE 27
+#define LED_RED 14
+
+#define POT_PIN 34
+
+// =========================
+// VARIABLES
+// =========================
+int brakeCount = 0;
+bool lastButtonState = HIGH;
+
+String currentRisk = "NORMAL";
+
+// FIXED INITIAL THICKNESS
+float INITIAL_THICKNESS = 10.00;
+
+// =========================
+// SETUP
+// =========================
+void setup() {
+  Serial.begin(115200);
+
+  pinMode(BUZZER, OUTPUT);
+  pinMode(BUTTON, INPUT_PULLUP);
+
+  pinMode(LED_GREEN, OUTPUT);
+  pinMode(LED_BLUE, OUTPUT);
+  pinMode(LED_ORANGE, OUTPUT);
+  pinMode(LED_RED, OUTPUT);
+
+  digitalWrite(BUZZER, LOW);
+
+  WiFi.begin(ssid, password);
+
+  Serial.print("Connecting to WiFi");
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    Serial.print(".");
+  }
+
+  Serial.println("\n✅ Connected");
+  Serial.print("ESP32 IP: ");
+  Serial.println(WiFi.localIP());
+
+  server.begin();
+}
+
+// =========================
+// READ POTENTIOMETER
+// =========================
+float getThickness() {
+  int raw = analogRead(POT_PIN);
+
+  float thickness = (raw / 4095.0) * 10.0;
+
+  if (thickness < 0) thickness = 0;
+  if (thickness > 10) thickness = 10;
+
+  return thickness;
+}
+
+// =========================
+// BUTTON → BRAKE COUNT
+// =========================
+void updateBrakeCount() {
+  bool currentState = digitalRead(BUTTON);
+
+  if (lastButtonState == HIGH && currentState == LOW) {
+    brakeCount++;
+    Serial.println("🔘 Brake Event Detected");
+    delay(150); // debounce
+  }
+
+  lastButtonState = currentState;
+}
+
+// =========================
+// LED + BUZZER CONTROL
+// =========================
+void updateOutputs(String risk) {
+
+  digitalWrite(LED_GREEN, LOW);
+  digitalWrite(LED_BLUE, LOW);
+  digitalWrite(LED_ORANGE, LOW);
+  digitalWrite(LED_RED, LOW);
+
+
+  if (risk == "NORMAL") {
+    digitalWrite(LED_GREEN, HIGH);
+  }
+  else if (risk == "MODERATE") {
+    digitalWrite(LED_BLUE, HIGH);
+  }
+  else if (risk == "HIGH") {
+    digitalWrite(LED_ORANGE, HIGH);
+  }
+  else if (risk == "CRITICAL") {
+
+    
+
+    static unsigned long previousMillis = 0;
+    static int state = 0;
+
+    unsigned long currentMillis = millis();
+
+    switch(state) {
+
+    case 0: // First beep ON
+        digitalWrite(BUZZER, HIGH);
+        digitalWrite(LED_RED, HIGH);
+
+        previousMillis = currentMillis;
+        state = 1;
+        break;
+
+    case 1: // First beep OFF
+        if(currentMillis - previousMillis >= 100) {
+
+            digitalWrite(BUZZER, LOW);
+            digitalWrite(LED_RED, LOW);
+
+            previousMillis = currentMillis;
+            state = 2;
+        }
+        break;
+
+    case 2: // Second beep ON
+        if(currentMillis - previousMillis >= 100) {
+
+            digitalWrite(BUZZER, HIGH);
+            digitalWrite(LED_RED, HIGH);
+
+            previousMillis = currentMillis;
+            state = 3;
+        }
+        break;
+
+    case 3: // Second beep OFF
+        if(currentMillis - previousMillis >= 100) {
+
+            digitalWrite(BUZZER, LOW);
+            digitalWrite(LED_RED, LOW);
+
+            previousMillis = currentMillis;
+            state = 4;
+        }
+        break;
+
+    case 4: // Wait 1 second
+        if(currentMillis - previousMillis >= 1000) {
+            state = 0;
+        }
+        break;
+    }
+  }
+}
+
+// =========================
+// MAIN LOOP (FINAL)
+// =========================
+void loop() {
+
+  // ALWAYS RUN (IMPORTANT)
+  updateBrakeCount();
+
+  WiFiClient client = server.available();
+
+  if (client) {
+    Serial.println("Client Connected");
+
+    while (client.connected()) {
+
+      //  CONTINUOUS SENSOR UPDATE
+      updateBrakeCount();
+      float thickness = getThickness();
+
+      //  SEND LIVE DATA
+      String data = "THICK:" + String(thickness, 2) +
+                    " BRAKE:" + String(brakeCount);
+
+      client.println(data);
+      Serial.println("LIVE → " + data);
+
+      //  RECEIVE RISK FROM UI
+      if (client.available()) {
+        String incoming = client.readStringUntil('\n');
+        incoming.trim();
+
+        Serial.println("Risk → " + incoming);
+
+        currentRisk = incoming;
+      }
+      updateOutputs(currentRisk);
+      
+
+      delay(200);  // smooth refresh
+    }
+
+    client.stop();
+    Serial.println("Client Disconnected");
+  }
+}
