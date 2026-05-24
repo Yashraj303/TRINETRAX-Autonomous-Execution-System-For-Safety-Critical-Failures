@@ -1,0 +1,34 @@
+[
+    {
+        "name": "Tata Service Center",
+        "pincode": "411015",
+        "slots": 30,
+        "used_slots": 0,
+        "date": "17-04-2026",
+        "time": "14:51"
+    },
+    {
+        "name": "mahindra",
+        "pincode": "411039",
+        "slots": 35,
+        "used_slots": 0,
+        "date": "17-04-2026",
+        "time": "14:51"
+    },
+    {
+        "name": "Suzuki",
+        "pincode": "411015",
+        "slots": 45,
+        "used_slots": 0,
+        "date": "17-04-2026",
+        "time": "14:52"
+    },
+    {
+        "name": "abc",
+        "pincode": "123456",
+        "slots": 50,
+        "used_slots": 0,
+        "date": "23-05-2026",
+        "time": "18:34"
+    }
+]
